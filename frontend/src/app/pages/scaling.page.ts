@@ -34,15 +34,32 @@ import { errorMessage } from '../core/ui';
       </article>
       <article class="panel">
         <h2>Canary</h2>
-        <p class="muted">Les poids sont écrits dans un HTTPRoute Gateway API. Sans ce contrôleur, l'API refuse l'opération et le trafic ne change pas.</p>
+        <p class="muted">Les poids sont écrits dans un HTTPRoute Gateway API. Le trafic n'est marqué appliqué que si les Pods sont prêts et que le Gateway accepte la route.</p>
         <form class="form-grid" [formGroup]="canary" (ngSubmit)="submitCanary()">
           <mat-form-field appearance="outline"><mat-label>Nom</mat-label><input matInput formControlName="name"></mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Application</mat-label><input matInput formControlName="applicationId"></mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Image stable</mat-label><input matInput formControlName="stableImage"></mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Image canary</mat-label><input matInput formControlName="canaryImage"></mat-form-field>
           <mat-form-field appearance="outline"><mat-label>Poids canary</mat-label><input matInput type="number" formControlName="canaryWeight"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Replicas</mat-label><input matInput type="number" formControlName="replicas"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Port</mat-label><input matInput type="number" formControlName="containerPort"></mat-form-field>
           <button mat-flat-button type="submit">Appliquer le poids</button>
         </form>
+      </article>
+      <article class="panel">
+        <h2>Rollback Kubernetes</h2>
+        <p class="muted">Ceci annule une révision du Deployment. Ce n'est pas le rollback d'image d'une fiche application.</p>
+        <form class="form-grid" [formGroup]="rollback" (ngSubmit)="loadRevisions()">
+          <mat-form-field appearance="outline"><mat-label>Deployment</mat-label><input matInput formControlName="name"></mat-form-field>
+          <button mat-stroked-button type="submit">Historique</button>
+        </form>
+        @for (item of revisions(); track item.revision) {
+          <p>
+            Révision {{ item.revision }} · {{ item.image }}
+            @if (item.current) { <span> · révision courante</span> }
+            @else { <button mat-button type="button" (click)="rollbackTo(item.revision)">Revenir à cette révision</button> }
+          </p>
+        }
       </article>
       <article class="panel">
         <h2>Horizontal Pod Autoscaler</h2>
@@ -67,6 +84,7 @@ export class ScalingPage {
   readonly message = signal('');
   readonly error = signal('');
   readonly result = signal('');
+  readonly revisions = signal<{ revision: number; image: string; current: boolean }[]>([]);
   readonly blueGreen = this.forms.nonNullable.group({
     name: ['', Validators.required],
     applicationId: ['', Validators.required],
@@ -79,11 +97,14 @@ export class ScalingPage {
   readonly canary = this.forms.nonNullable.group({
     name: ['', Validators.required],
     applicationId: ['', Validators.required],
-    stableImage: ['registry:5000/dcp/app:1', Validators.required],
-    canaryImage: ['registry:5000/dcp/app:2', Validators.required],
+    stableImage: ['registry:5000/dcp/web:stable', Validators.required],
+    canaryImage: ['registry:5000/dcp/web:canary', Validators.required],
     replicas: [1, Validators.required],
-    containerPort: [8080, Validators.required],
+    containerPort: [80, Validators.required],
     canaryWeight: [10, Validators.required]
+  });
+  readonly rollback = this.forms.nonNullable.group({
+    name: ['', Validators.required]
   });
   readonly autoscaler = this.forms.nonNullable.group({
     name: ['', Validators.required],
@@ -117,7 +138,30 @@ export class ScalingPage {
   submitCanary(): void {
     this.api.canary(this.canary.getRawValue()).subscribe({
       next: (body) => this.show(body),
-      error: (err: unknown) => this.error.set(errorMessage(err))
+      error: (err: unknown) => this.fail(err)
+    });
+  }
+
+  loadRevisions(): void {
+    const name = this.rollback.getRawValue().name;
+    this.api.k8sRevisions(name).subscribe({
+      next: (items) => {
+        this.revisions.set(items);
+        this.error.set('');
+        this.message.set(items.length + ' révision(s) Kubernetes.');
+      },
+      error: (err: unknown) => this.fail(err)
+    });
+  }
+
+  rollbackTo(revision: number): void {
+    const name = this.rollback.getRawValue().name;
+    this.api.k8sRollback(name, revision).subscribe({
+      next: (body) => {
+        this.show(body);
+        this.loadRevisions();
+      },
+      error: (err: unknown) => this.fail(err)
     });
   }
 
@@ -130,8 +174,19 @@ export class ScalingPage {
   }
 
   private show(body: unknown): void {
-    this.error.set('');
-    this.message.set('Réponse du service Kubernetes.');
+    const view = body as { trafficApplied?: boolean; message?: string };
     this.result.set(JSON.stringify(body, null, 2));
+    if (view.trafficApplied === false) {
+      this.message.set('');
+      this.error.set(view.message || 'Le trafic n’a pas été confirmé.');
+      return;
+    }
+    this.error.set('');
+    this.message.set(view.message || 'Réponse du service Kubernetes.');
+  }
+
+  private fail(err: unknown): void {
+    this.message.set('');
+    this.error.set(errorMessage(err));
   }
 }

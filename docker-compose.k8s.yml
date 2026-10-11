@@ -1,8 +1,17 @@
-# Optional overlay when a kubeconfig exists on the host.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.k8s.yml up
+# Overlay used once a kind cluster named dcp is running.
+# The container kubeconfig points at https://dcp-control-plane:6443 on the kind network.
+# Host kubectl keeps 127.0.0.1 in %USERPROFILE%\.kube\config.
 services:
   kubernetes-service:
     volumes:
-      - ${USERPROFILE}/.kube:/kube:ro
+      - ./infrastructure/kubernetes/kubeconfig.container:/kube/config:ro
     environment:
       KUBECONFIG: /kube/config
+    networks:
+      - default
+      - kind
+
+networks:
+  kind:
+    external: true
+    name: kind

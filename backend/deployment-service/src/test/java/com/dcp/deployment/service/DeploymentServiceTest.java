@@ -82,7 +82,9 @@ class DeploymentServiceTest {
                 monitoringClient,
                 task -> {
                 },
-                5);
+                5,
+                "localhost:15000",
+                "registry:5000");
     }
 
     @AfterEach
@@ -114,6 +116,42 @@ class DeploymentServiceTest {
 
         assertEquals(409, exception.status());
         verifyNoInteractions(applicationClient);
+    }
+
+    @Test
+    void rollbackCreatesAPendingDeploymentFromThePreviousImage() {
+        UUID ownerId = UUID.randomUUID();
+        UUID applicationId = UUID.randomUUID();
+        UUID deploymentId = UUID.randomUUID();
+        authenticate(ownerId, "USER");
+        DeploymentEntity current = deployment(deploymentId, applicationId, ownerId);
+        current.setStatus(DeploymentStatus.SUCCEEDED);
+        current.setImageRepository("ghcr.io/acme/demo");
+        current.setImageTag("v2");
+        current.setReplicas(1);
+        current.setCreatedAt(Instant.parse("2026-04-02T00:00:00Z"));
+        DeploymentEntity previous = deployment(UUID.randomUUID(), applicationId, ownerId);
+        previous.setStatus(DeploymentStatus.SUCCEEDED);
+        previous.setImageRepository("ghcr.io/acme/demo");
+        previous.setImageTag("v1");
+        previous.setReplicas(2);
+        previous.setCreatedAt(Instant.parse("2026-04-01T00:00:00Z"));
+        when(deployments.findById(deploymentId)).thenReturn(Optional.of(current));
+        when(deployments.findByApplicationIdAndStatusAndCreatedAtBeforeOrderByCreatedAtDesc(
+                eq(applicationId), eq(DeploymentStatus.SUCCEEDED), any())).thenReturn(List.of(previous));
+        when(applicationClient.get(eq("/internal/applications/" + applicationId), eq(RemoteApplication.class)))
+                .thenReturn(new RemoteApplication(
+                        applicationId, ownerId, "demo", null, "https://github.com/acme/demo", "main",
+                        "DEV", "Dockerfile", ".", 8080, "CREATED", null, null));
+        when(deployments.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var view = service.rollback(deploymentId);
+
+        assertEquals(TriggerType.ROLLBACK, view.trigger());
+        assertEquals("v1", view.imageTag());
+        assertEquals("ghcr.io/acme/demo", view.imageRepository());
+        assertEquals(2, view.replicas());
+        verifyNoInteractions(dockerClient);
     }
 
     @Test

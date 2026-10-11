@@ -135,6 +135,13 @@ public final class KubernetesApi {
     ) {
     }
 
+    public record RevisionView(
+            long revision,
+            String image,
+            boolean current
+    ) {
+    }
+
     public record ReleaseView(
             String name,
             String namespace,

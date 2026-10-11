@@ -71,6 +71,8 @@ public class DeploymentService {
     private final InternalRestClient monitoringClient;
     private final Executor deploymentExecutor;
     private final int maxReplicas;
+    private final String publicRegistry;
+    private final String clusterRegistry;
 
     public DeploymentService(DeploymentRepository deployments,
                              DeploymentEventRepository events,
@@ -80,7 +82,9 @@ public class DeploymentService {
                              @Qualifier("authClient") InternalRestClient authClient,
                              @Qualifier("monitoringClient") InternalRestClient monitoringClient,
                              @Qualifier("deploymentExecutor") Executor deploymentExecutor,
-                             @Value("${dcp.kubernetes.max-replicas:5}") int maxReplicas) {
+                             @Value("${dcp.kubernetes.max-replicas:5}") int maxReplicas,
+                             @Value("${dcp.images.public-registry:localhost:15000}") String publicRegistry,
+                             @Value("${dcp.images.cluster-registry:registry:5000}") String clusterRegistry) {
         this.deployments = deployments;
         this.events = events;
         this.applicationClient = applicationClient;
@@ -90,6 +94,8 @@ public class DeploymentService {
         this.monitoringClient = monitoringClient;
         this.deploymentExecutor = deploymentExecutor;
         this.maxReplicas = maxReplicas;
+        this.publicRegistry = publicRegistry;
+        this.clusterRegistry = clusterRegistry;
     }
 
     public DeploymentView createForUser(CreateDeploymentRequest request) {
@@ -260,6 +266,12 @@ public class DeploymentService {
             fullImage = build.fullImage() == null || build.fullImage().isBlank()
                     ? imageRepository + ":" + imageTag
                     : build.fullImage();
+            fullImage = ClusterImages.forCluster(fullImage, publicRegistry, clusterRegistry);
+            int colon = fullImage.lastIndexOf(':');
+            if (colon > 0) {
+                imageRepository = fullImage.substring(0, colon);
+                imageTag = fullImage.substring(colon + 1);
+            }
         }
 
         RemoteEnvVar[] env = applicationClient.get(

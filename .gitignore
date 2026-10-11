@@ -20,9 +20,16 @@
 
 # Secrets and local kubeconfig copies
 infrastructure/kubernetes/secret.yaml
+infrastructure/kubernetes/kubeconfig
+infrastructure/kubernetes/kubeconfig.*
 **/*-credentials.json
 **/*.pem
 **/*.key
+**/*.p12
+**/*.pfx
+
+# Local notes about other machines. Not part of the product.
+docs/conteneurs-arretes.txt
 
 # OS
 Thumbs.db

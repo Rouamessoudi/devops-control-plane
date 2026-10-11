@@ -1,6 +1,7 @@
 package com.dcp.auth.service;
 
 import com.dcp.auth.api.AuthResponse;
+import com.dcp.auth.api.ChangePasswordRequest;
 import com.dcp.auth.api.LoginRequest;
 import com.dcp.auth.api.RefreshRequest;
 import com.dcp.auth.api.RegisterRequest;
@@ -11,6 +12,7 @@ import com.dcp.auth.domain.User;
 import com.dcp.auth.repo.RefreshTokenRepository;
 import com.dcp.auth.repo.UserRepository;
 import com.dcp.common.error.ApiException;
+import com.dcp.common.security.JwtPrincipal;
 import com.dcp.common.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +20,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
@@ -161,6 +165,26 @@ class AuthServiceTest {
         Instant latest = Instant.now().plus(AuthService.REFRESH_TTL).plus(Duration.ofMinutes(1));
         assertFalse(created.getExpiresAt().isBefore(earliest));
         assertFalse(created.getExpiresAt().isAfter(latest));
+    }
+
+    @Test
+    void changePasswordRejectsTheCurrentPassword() {
+        UUID userId = UUID.randomUUID();
+        User user = user(userId, "dev@example.com", "hashed");
+        when(users.findById(userId)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("OldPassword1", "hashed")).thenReturn(false);
+        JwtPrincipal principal = new JwtPrincipal(userId, "dev@example.com", Set.of("DEVELOPER"));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(principal, null, java.util.List.of()));
+        try {
+            ApiException exception = assertThrows(ApiException.class, () -> authService.changePassword(
+                    new ChangePasswordRequest("OldPassword1", "NewPassword1"), "10.0.0.1"));
+            assertEquals(401, exception.status());
+            verify(passwordEncoder, never()).encode(anyString());
+            verify(refreshTokens, never()).revokeByUserId(any());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     private static User user(UUID id, String email, String passwordHash) {

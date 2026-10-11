@@ -57,6 +57,6 @@ Dans Compose et dans Kubernetes, la découverte est le DNS des services (`http:/
 - Le profil `prod` refuse les secrets qui commencent par `dev-only-`.
 - Les fichiers d'exemple ne contiennent pas de secret de production. `.env` est ignoré par Git.
 
-## Ce qui n'est pas encore un cluster
+## Cluster
 
-Le 11 octobre 2026 à 17:06, `kubectl` n'avait aucun contexte. Minikube, kind et k3d ne sont pas installés. Docker Desktop Kubernetes n'a pas été activé : environ 4,7 Go de RAM libre et 44 conteneurs déjà lancés dans une VM Docker de 16 Go. Les lectures Kubernetes répondent que le cluster est injoignable. Prometheus, lui, scrape les huit endpoints Actuator ; les graphiques Grafana utilisent ces séries, pas des métriques de Pods.
+À 17:14, aucun contexte kubectl n'existait et les lectures Kubernetes répondaient que le cluster était injoignable. Après l'arrêt des conteneurs coinrush, supcom et smartrecruit, le contexte `kind-dcp` répond. `GET /api/kubernetes/status` indique le namespace `dcp` et une API joignable. Metrics Server est disponible. Prometheus continue de scraper les huit endpoints Actuator ; les graphiques Grafana restent sur ces séries.

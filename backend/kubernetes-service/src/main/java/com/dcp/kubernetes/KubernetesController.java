@@ -74,9 +74,15 @@ public class KubernetesController {
         return cluster.restart(name);
     }
 
+    @GetMapping("/deployments/{name}/revisions")
+    public List<KubernetesApi.RevisionView> revisions(@PathVariable String name) {
+        return cluster.revisions(name);
+    }
+
     @PostMapping("/deployments/{name}/rollback")
-    public KubernetesApi.K8sDeploymentView rollback(@PathVariable String name) {
-        return cluster.rollback(name);
+    public KubernetesApi.K8sDeploymentView rollback(@PathVariable String name,
+                                                    @RequestParam(required = false) Integer revision) {
+        return cluster.rollback(name, revision);
     }
 
     @GetMapping("/audit-events")

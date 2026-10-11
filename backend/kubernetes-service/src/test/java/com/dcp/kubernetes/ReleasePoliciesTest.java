@@ -14,6 +14,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ReleasePoliciesTest {
 
     @Test
+    void blueGreenTrackRejectsAnythingElse() {
+        assertEquals("green", ReleasePolicies.otherTrack("blue"));
+        assertEquals("blue", ReleasePolicies.otherTrack("green"));
+        assertThrows(ApiException.class, () -> ReleasePolicies.track("stable"));
+        assertThrows(ApiException.class, () -> ReleasePolicies.rollbackCause(0, 0, 0, false, false, 3));
+    }
+
+    @Test
     void acceptsOnlyConfiguredCanaryWeights() {
         assertEquals(10, ReleasePolicies.canaryWeight(10));
         assertEquals(25, ReleasePolicies.canaryWeight(25));

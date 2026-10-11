@@ -33,6 +33,9 @@ dcp:
     monitoring-url: ${MONITORING_SERVICE_URL:http://monitoring-service:8087}
   kubernetes:
     max-replicas: ${DCP_MAX_REPLICAS:5}
+  images:
+    public-registry: ${DCP_PUBLIC_REGISTRY:localhost:15000}
+    cluster-registry: ${DCP_REGISTRY:registry:5000}
 
 management:
   endpoints:

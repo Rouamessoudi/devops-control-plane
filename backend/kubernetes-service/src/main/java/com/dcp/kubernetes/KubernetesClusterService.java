@@ -15,9 +15,12 @@ import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.Secret;
 import io.fabric8.kubernetes.api.model.SecretBuilder;
 import io.fabric8.kubernetes.api.model.ServicePort;
+import io.fabric8.kubernetes.api.model.OwnerReference;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.api.model.apps.DeploymentCondition;
+import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
+import io.fabric8.kubernetes.api.model.gatewayapi.v1.HTTPRoute;
 import io.fabric8.kubernetes.api.model.metrics.v1beta1.PodMetrics;
 import io.fabric8.kubernetes.api.model.networking.v1.Ingress;
 import io.fabric8.kubernetes.api.model.networking.v1.IngressBuilder;
@@ -198,10 +201,45 @@ public class KubernetesClusterService {
         });
     }
 
-    public KubernetesApi.K8sDeploymentView rollback(String name) {
-        return mutate(name, "ROLLBACK", "Rolled back", () -> {
+    public List<KubernetesApi.RevisionView> revisions(String name) {
+        requireAdmin();
+        Deployment deployment = requireManaged(name);
+        String safe = deployment.getMetadata().getName();
+        long current = currentRevision(deployment);
+        List<KubernetesApi.RevisionView> views = new ArrayList<>();
+        List<ReplicaSet> sets = read(() -> client.apps().replicaSets().inNamespace(namespace()).list().getItems());
+        if (sets == null) {
+            return List.of();
+        }
+        for (ReplicaSet set : sets) {
+            if (!ownedBy(set, safe)) {
+                continue;
+            }
+            long revision = revisionOf(set);
+            if (revision < 1) {
+                continue;
+            }
+            views.add(new KubernetesApi.RevisionView(revision, containerImage(set), revision == current));
+        }
+        views.sort((left, right) -> Long.compare(right.revision(), left.revision()));
+        return views;
+    }
+
+    public KubernetesApi.K8sDeploymentView rollback(String name, Integer revision) {
+        requireAdmin();
+        String detail = revision == null ? "Rolled back to the previous revision" : "Rolled back to revision " + revision;
+        return mutate(name, "ROLLBACK", detail, () -> {
             String safe = ResourcePolicies.dnsLabel(name, "name");
-            client.apps().deployments().inNamespace(namespace()).withName(safe).rolling().undo();
+            if (revision == null) {
+                client.apps().deployments().inNamespace(namespace()).withName(safe).rolling().undo();
+            } else {
+                restoreRevision(safe, revision);
+            }
+            Deployment existing = client.apps().deployments().inNamespace(namespace()).withName(safe).get();
+            int desired = existing == null || existing.getSpec() == null || existing.getSpec().getReplicas() == null
+                    ? 1
+                    : existing.getSpec().getReplicas();
+            awaitReady(namespace(), safe, desired);
         });
     }
 
@@ -292,9 +330,23 @@ public class KubernetesClusterService {
                     namespace, stableName, stableName, "stable", request.containerPort(), request.applicationId())).createOrReplace();
             client.services().inNamespace(namespace).resource(ReleaseManifests.trackService(
                     namespace, canaryName, canaryName, "canary", request.containerPort(), request.applicationId())).createOrReplace();
+            Deployment stableReady = awaitReady(namespace, stableName, request.replicas());
+            Deployment canaryReady = awaitReady(namespace, canaryName, request.replicas());
+            if (readyCount(stableReady) < request.replicas() || readyCount(canaryReady) < request.replicas()) {
+                String message = "Pods are not Ready. HTTPRoute weights were not applied.";
+                operations.record(user.userId(), "CANARY", base, "FAILED", message);
+                return new KubernetesApi.ReleaseView(base, namespace, "CANARY", "canary", weight, "FAILED", message, false);
+            }
             String gateway = ResourcePolicies.dnsLabel(properties.getGatewayName(), "gateway");
             client.resource(ReleaseManifests.canaryRoute(namespace, base, gateway, stableName, canaryName, weight)).createOrReplace();
-            String message = "HTTPRoute " + base + " weights stable=" + (100 - weight) + " canary=" + weight + " via Gateway " + gateway;
+            HTTPRoute programmed = awaitRoute(namespace, base);
+            if (!GatewayRouteStatus.accepted(programmed)) {
+                String message = "HTTPRoute was stored but the Gateway has not accepted it. Traffic split is not confirmed.";
+                operations.record(user.userId(), "CANARY", base, "FAILED", message);
+                return new KubernetesApi.ReleaseView(base, namespace, "CANARY", "canary", weight, "FAILED", message, false);
+            }
+            String message = "HTTPRoute " + base + " accepted by Gateway " + gateway
+                    + ". stable=" + (100 - weight) + " canary=" + weight;
             operations.record(user.userId(), "CANARY", base, "APPLIED", message);
             return new KubernetesApi.ReleaseView(base, namespace, "CANARY", "canary", weight, "APPLIED", message, true);
         } catch (RuntimeException ex) {
@@ -386,6 +438,105 @@ public class KubernetesClusterService {
             operations.record(user.userId(), operation, safe, "FAILED", mapped.getMessage());
             throw mapped;
         }
+    }
+
+    private void restoreRevision(String name, int revision) {
+        String namespace = namespace();
+        Deployment deployment = client.apps().deployments().inNamespace(namespace).withName(name).get();
+        if (deployment == null || deployment.getSpec() == null) {
+            throw ApiException.notFound("Deployment was not found");
+        }
+        if (revision == currentRevision(deployment)) {
+            throw ApiException.conflict("Deployment is already at revision " + revision);
+        }
+        ReplicaSet match = null;
+        List<ReplicaSet> sets = client.apps().replicaSets().inNamespace(namespace).list().getItems();
+        if (sets != null) {
+            for (ReplicaSet set : sets) {
+                if (ownedBy(set, name) && revisionOf(set) == revision) {
+                    match = set;
+                }
+            }
+        }
+        if (match == null || match.getSpec() == null || match.getSpec().getTemplate() == null) {
+            throw ApiException.badRequest("Revision " + revision + " was not found");
+        }
+        var template = match.getSpec().getTemplate();
+        if (template.getMetadata() != null && template.getMetadata().getLabels() != null) {
+            Map<String, String> labels = new LinkedHashMap<>(template.getMetadata().getLabels());
+            labels.remove("pod-template-hash");
+            template.getMetadata().setLabels(labels);
+        }
+        deployment.getSpec().setTemplate(template);
+        client.apps().deployments().inNamespace(namespace).withName(name).replace(deployment);
+    }
+
+    private HTTPRoute awaitRoute(String namespace, String name) {
+        try {
+            HTTPRoute route = client.resources(HTTPRoute.class)
+                    .inNamespace(namespace)
+                    .withName(name)
+                    .waitUntilCondition(GatewayRouteStatus::accepted, 60, TimeUnit.SECONDS);
+            if (route != null) {
+                return route;
+            }
+        } catch (KubernetesClientTimeoutException ex) {
+            // The caller reports that the Gateway did not accept the route.
+        }
+        return client.resources(HTTPRoute.class).inNamespace(namespace).withName(name).get();
+    }
+
+    private static void requireAdmin() {
+        JwtPrincipal user = CurrentUser.require();
+        if (!user.hasRole("ADMIN")) {
+            throw ApiException.forbidden("Administrator role is required for Kubernetes rollback");
+        }
+    }
+
+    private static boolean ownedBy(ReplicaSet set, String deploymentName) {
+        if (set.getMetadata() == null || set.getMetadata().getOwnerReferences() == null) {
+            return false;
+        }
+        for (OwnerReference reference : set.getMetadata().getOwnerReferences()) {
+            if ("Deployment".equals(reference.getKind()) && deploymentName.equals(reference.getName())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static long revisionOf(ReplicaSet set) {
+        return annotationRevision(set.getMetadata());
+    }
+
+    private static long currentRevision(Deployment deployment) {
+        return annotationRevision(deployment.getMetadata());
+    }
+
+    private static long annotationRevision(ObjectMeta metadata) {
+        if (metadata == null || metadata.getAnnotations() == null) {
+            return -1;
+        }
+        String value = metadata.getAnnotations().get("deployment.kubernetes.io/revision");
+        if (value == null || value.isBlank()) {
+            return -1;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
+    }
+
+    private static String containerImage(ReplicaSet set) {
+        if (set.getSpec() == null || set.getSpec().getTemplate() == null
+                || set.getSpec().getTemplate().getSpec() == null
+                || set.getSpec().getTemplate().getSpec().getContainers() == null
+                || set.getSpec().getTemplate().getSpec().getContainers().isEmpty()
+                || set.getSpec().getTemplate().getSpec().getContainers().get(0).getImage() == null) {
+            return "";
+        }
+        return set.getSpec().getTemplate().getSpec().getContainers().get(0).getImage();
     }
 
     private void rejectUnmanaged(String namespace, String name, boolean replacingSecret) {

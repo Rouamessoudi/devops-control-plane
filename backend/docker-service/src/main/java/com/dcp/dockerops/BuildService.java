@@ -85,7 +85,11 @@ public class BuildService {
         String tag = ImageNames.tag(request.imageTag());
         String imageName = ImageNames.imageName(dockerProperties.getPublicRegistry(), repository);
         String fullImage = ImageNames.fullImage(dockerProperties.getPublicRegistry(), repository, tag);
-        String pushImage = ImageNames.fullImage(dockerProperties.getRegistry(), repository, tag);
+        String pushRegistry = dockerProperties.getPublicRegistry();
+        if (pushRegistry == null || pushRegistry.isBlank()) {
+            pushRegistry = dockerProperties.getRegistry();
+        }
+        String pushImage = ImageNames.fullImage(pushRegistry, repository, tag);
         ImageNames.requireOwned(fullImage);
         ImageNames.requireOwned(pushImage);
 

@@ -125,8 +125,13 @@ export class ApiService {
     return this.http.post(`/api/kubernetes/deployments/${name}/restart`, {});
   }
 
-  k8sRollback(name: string): Observable<unknown> {
-    return this.http.post(`/api/kubernetes/deployments/${name}/rollback`, {});
+  k8sRevisions(name: string): Observable<{ revision: number; image: string; current: boolean }[]> {
+    return this.http.get<{ revision: number; image: string; current: boolean }[]>(`/api/kubernetes/deployments/${encodeURIComponent(name)}/revisions`);
+  }
+
+  k8sRollback(name: string, revision?: number): Observable<unknown> {
+    const params = revision == null ? undefined : { revision };
+    return this.http.post(`/api/kubernetes/deployments/${encodeURIComponent(name)}/rollback`, {}, { params });
   }
 
   metricsServer(): Observable<{ available: boolean; message: string }> {
