@@ -1,0 +1,62 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 3000
+            response-timeout: 120s
+          routes:
+            - id: auth
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates:
+                - Path=/api/auth/**,/api/users/**,/api/notifications/**
+            - id: applications
+              uri: ${APPLICATION_SERVICE_URL:http://application-service:8082}
+              predicates:
+                - Path=/api/applications/**
+            - id: docker
+              uri: ${DOCKER_SERVICE_URL:http://docker-service:8083}
+              predicates:
+                - Path=/api/docker/**
+            - id: kubernetes
+              uri: ${KUBERNETES_SERVICE_URL:http://kubernetes-service:8084}
+              predicates:
+                - Path=/api/kubernetes/**
+            - id: deployments
+              uri: ${DEPLOYMENT_SERVICE_URL:http://deployment-service:8085}
+              predicates:
+                - Path=/api/deployments/**
+            - id: pipelines
+              uri: ${CICD_SERVICE_URL:http://cicd-service:8086}
+              predicates:
+                - Path=/api/pipelines/**,/api/cicd/**
+            - id: monitoring
+              uri: ${MONITORING_SERVICE_URL:http://monitoring-service:8087}
+              predicates:
+                - Path=/api/monitoring/**
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+    access-token-minutes: 15
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

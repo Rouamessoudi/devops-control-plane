@@ -1,0 +1,11 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+dcp:
+  jwt:
+    secret: ${JWT_SECRET}
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN}
+  crypto:
+    secret: ${ENV_ENCRYPTION_KEY}

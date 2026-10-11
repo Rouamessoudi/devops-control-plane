@@ -1,0 +1,28 @@
+name: Application pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_id:
+        description: DevOps Control Plane pipeline id
+        required: true
+        type: string
+      image_tag:
+        description: Image tag
+        required: false
+        default: latest
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test
+        run: |
+          if [ -f pom.xml ]; then mvn -B test; fi
+          if [ -f package.json ]; then npm ci && npm test; fi
+      - name: Build image
+        run: docker build -t "dcp/${GITHUB_REPOSITORY##*/}:${{ inputs.image_tag }}" .
+      - name: Report
+        run: echo "pipeline ${{ inputs.pipeline_id }} built locally in GitHub Actions"

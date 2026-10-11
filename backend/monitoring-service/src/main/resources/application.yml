@@ -1,0 +1,48 @@
+server:
+  port: ${SERVER_PORT:8087}
+
+spring:
+  application:
+    name: monitoring-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/monitoring_db?characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true
+    username: dcp
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  prometheus:
+    url: ${PROMETHEUS_URL:http://prometheus:9090}
+  grafana:
+    url: ${GRAFANA_URL:http://localhost:13001}
+    dashboard-path: ${GRAFANA_DASHBOARD_PATH:/d/dcp-overview}
+  kubernetes:
+    namespace: ${DCP_NAMESPACE:dcp}
+  clients:
+    kubernetes-url: ${KUBERNETES_SERVICE_URL:http://kubernetes-service:8084}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

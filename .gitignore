@@ -1,0 +1,28 @@
+.tools/
+.env
+*.log
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Java
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Node
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+**/playwright-report/
+**/test-results/
+
+# Secrets and local kubeconfig copies
+infrastructure/kubernetes/secret.yaml
+**/*-credentials.json
+**/*.pem
+**/*.key
+
+# OS
+Thumbs.db

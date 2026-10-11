@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: devops-control-plane
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:8080
+          - auth-service:8081
+          - application-service:8082
+          - docker-service:8083
+          - kubernetes-service:8084
+          - deployment-service:8085
+          - cicd-service:8086
+          - monitoring-service:8087
+        labels:
+          platform: dcp

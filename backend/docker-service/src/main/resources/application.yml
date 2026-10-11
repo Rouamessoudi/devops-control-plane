@@ -1,0 +1,50 @@
+server:
+  port: ${SERVER_PORT:8083}
+
+spring:
+  application:
+    name: docker-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/docker_db?characterEncoding=utf8&serverTimezone=UTC
+    username: dcp
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  docker:
+    registry: ${DCP_REGISTRY:}
+    public-registry: ${DCP_PUBLIC_REGISTRY:${DCP_REGISTRY:}}
+  github:
+    token: ${GITHUB_TOKEN:}
+    allowed-orgs: ${DCP_ALLOWED_GITHUB_ORGS:}
+    enforce-allowlist: ${DCP_ENFORCE_GITHUB_ALLOWLIST:false}
+  clients:
+    application-url: ${APPLICATION_SERVICE_URL:http://application-service:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

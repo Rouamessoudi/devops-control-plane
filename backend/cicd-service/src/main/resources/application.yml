@@ -1,0 +1,49 @@
+server:
+  port: ${SERVER_PORT:8086}
+
+spring:
+  application:
+    name: cicd-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/cicd_db?characterEncoding=utf8&serverTimezone=UTC&createDatabaseIfNotExist=true
+    username: dcp
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  pipeline:
+    mode: ${DCP_PIPELINE_MODE:local}
+  github:
+    token: ${GITHUB_TOKEN:}
+    webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+    workflow: ${DCP_GITHUB_WORKFLOW:dcp-pipeline.yml}
+  clients:
+    application-url: ${APPLICATION_SERVICE_URL:http://application-service:8082}
+    deployment-url: ${DEPLOYMENT_SERVICE_URL:http://deployment-service:8085}
+    auth-url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

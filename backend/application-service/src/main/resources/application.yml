@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: application-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/application_db?characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:dcp}
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+    access-token-minutes: 15
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  crypto:
+    secret: ${ENV_ENCRYPTION_KEY:dev-only-env-key-change-me}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

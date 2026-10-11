@@ -1,0 +1,47 @@
+server:
+  port: ${SERVER_PORT:8084}
+
+spring:
+  application:
+    name: kubernetes-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/kubernetes_db?characterEncoding=utf8&serverTimezone=UTC
+    username: dcp
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  kubernetes:
+    namespace: ${DCP_NAMESPACE:dcp}
+    max-replicas: ${DCP_MAX_REPLICAS:5}
+    allowed-registries: ${DCP_ALLOWED_REGISTRIES:localhost:15000,registry:5000}
+    gateway-name: ${DCP_GATEWAY_NAME:dcp}
+    rollback-max-restarts: ${DCP_ROLLBACK_MAX_RESTARTS:3}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

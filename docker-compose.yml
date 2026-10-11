@@ -1,0 +1,199 @@
+﻿name: devops-control-plane
+
+x-java: &java
+  restart: unless-stopped
+  mem_limit: 384m
+  depends_on:
+    mysql:
+      condition: service_healthy
+  environment: &java-env
+    MYSQL_HOST: mysql
+    MYSQL_PORT: "3306"
+    MYSQL_USER: ${MYSQL_USER:-dcp}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev-only-mysql-password}
+    JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-me-32b}
+    INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-only-internal-token-change-me}
+    ENV_ENCRYPTION_KEY: ${ENV_ENCRYPTION_KEY:-dev-only-env-key-change-me}
+    AUTH_SERVICE_URL: http://auth-service:8081
+    APPLICATION_SERVICE_URL: http://application-service:8082
+    DOCKER_SERVICE_URL: http://docker-service:8083
+    KUBERNETES_SERVICE_URL: http://kubernetes-service:8084
+    DEPLOYMENT_SERVICE_URL: http://deployment-service:8085
+    CICD_SERVICE_URL: http://cicd-service:8086
+    MONITORING_SERVICE_URL: http://monitoring-service:8087
+    DCP_ADMIN_EMAIL: ${DCP_ADMIN_EMAIL:-admin@dcp.local}
+    DCP_ADMIN_PASSWORD: ${DCP_ADMIN_PASSWORD:-ChangeMe!2026}
+    GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+    DCP_REGISTRY: ${DCP_REGISTRY:-registry:5000}
+    DCP_PUBLIC_REGISTRY: ${DCP_PUBLIC_REGISTRY:-localhost:15000}
+    DCP_ALLOWED_GITHUB_ORGS: ${DCP_ALLOWED_GITHUB_ORGS:-}
+    DCP_ENFORCE_GITHUB_ALLOWLIST: ${DCP_ENFORCE_GITHUB_ALLOWLIST:-false}
+    DCP_PIPELINE_MODE: ${DCP_PIPELINE_MODE:-local}
+    PROMETHEUS_URL: http://prometheus:9090
+    GRAFANA_URL: http://localhost:13001
+    DCP_NAMESPACE: dcp
+
+services:
+  mysql:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/mysql/Dockerfile
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev-only-mysql-root}
+      MYSQL_USER: ${MYSQL_USER:-dcp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-dev-only-mysql-password}
+      MYSQL_DATABASE: auth_db
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-dev-only-mysql-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    mem_limit: 512m
+
+  registry:
+    image: registry:2
+    ports:
+      - "127.0.0.1:15000:5000"
+
+  api-gateway:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/api-gateway/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      application-service:
+        condition: service_started
+      docker-service:
+        condition: service_started
+      kubernetes-service:
+        condition: service_started
+      deployment-service:
+        condition: service_started
+      cicd-service:
+        condition: service_started
+      monitoring-service:
+        condition: service_started
+
+  auth-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/auth-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18181:8081"
+
+  application-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/application-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18082:8082"
+
+  docker-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/docker-service/Dockerfile
+    environment:
+      <<: *java-env
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "127.0.0.1:18083:8083"
+
+  kubernetes-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/kubernetes-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18084:8084"
+
+  deployment-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/deployment-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18085:8085"
+
+  cicd-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/cicd-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18086:8086"
+
+  monitoring-service:
+    <<: *java
+    build:
+      context: .
+      dockerfile: backend/monitoring-service/Dockerfile
+    environment:
+      <<: *java-env
+    ports:
+      - "127.0.0.1:18087:8087"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:19090:9090"
+    mem_limit: 256m
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-dev-only-grafana-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infrastructure/monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:13001:3000"
+    depends_on:
+      - prometheus
+    mem_limit: 256m
+
+volumes:
+  mysql-data:
+  prometheus-data:

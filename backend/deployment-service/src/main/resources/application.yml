@@ -1,0 +1,48 @@
+server:
+  port: ${SERVER_PORT:8085}
+
+spring:
+  application:
+    name: deployment-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/deployment_db?characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:dcp}
+    password: ${MYSQL_PASSWORD:dev-only-mysql-password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+  flyway:
+    enabled: true
+
+dcp:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-32b}
+    access-token-minutes: 15
+  security:
+    internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
+  clients:
+    application-url: ${APPLICATION_SERVICE_URL:http://application-service:8082}
+    docker-url: ${DOCKER_SERVICE_URL:http://docker-service:8083}
+    kubernetes-url: ${KUBERNETES_SERVICE_URL:http://kubernetes-service:8084}
+    auth-url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+    monitoring-url: ${MONITORING_SERVICE_URL:http://monitoring-service:8087}
+  kubernetes:
+    max-replicas: ${DCP_MAX_REPLICAS:5}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

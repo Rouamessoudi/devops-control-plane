@@ -1,0 +1,8 @@
+# Optional overlay when a kubeconfig exists on the host.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.k8s.yml up
+services:
+  kubernetes-service:
+    volumes:
+      - ${USERPROFILE}/.kube:/kube:ro
+    environment:
+      KUBECONFIG: /kube/config
