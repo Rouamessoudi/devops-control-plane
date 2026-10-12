@@ -10,11 +10,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.UUID;
 import java.util.stream.Stream;
+
+import static java.nio.file.attribute.PosixFilePermission.OWNER_EXECUTE;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 @Service
 public class BuildJob {
@@ -36,7 +42,7 @@ public class BuildJob {
     public void run(UUID id, String dockerfilePath, String contextPath, String pushImage) {
         Path workspace = null;
         try {
-            workspace = Files.createTempDirectory("dcp-src-");
+            workspace = privateWorkspace();
             store.markRunning(id);
             int order = 1;
             if (!checkout(id, order++, workspace)) {
@@ -162,6 +168,23 @@ public class BuildJob {
             cleaned = cleaned.replace(token, "***");
         }
         return cleaned;
+    }
+
+    static Path privateWorkspace() throws IOException {
+        Path root = Path.of(System.getProperty("user.home"), ".dcp", "builds");
+        Files.createDirectories(root);
+        ownerOnly(root);
+        Path workspace = root.resolve("src-" + UUID.randomUUID());
+        Files.createDirectory(workspace);
+        ownerOnly(workspace);
+        return workspace;
+    }
+
+    private static void ownerOnly(Path path) throws IOException {
+        if (!FileSystems.getDefault().supportedFileAttributeViews().contains("posix")) {
+            return;
+        }
+        Files.setPosixFilePermissions(path, EnumSet.of(OWNER_READ, OWNER_WRITE, OWNER_EXECUTE));
     }
 
     private static void deleteRecursively(Path root) {

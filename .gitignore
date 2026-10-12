@@ -22,6 +22,7 @@
 infrastructure/kubernetes/secret.yaml
 infrastructure/kubernetes/kubeconfig
 infrastructure/kubernetes/kubeconfig.*
+infrastructure/monitoring/prometheus/k8s-token
 **/*-credentials.json
 **/*.pem
 **/*.key

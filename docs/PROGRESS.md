@@ -165,3 +165,41 @@ JaCoCo 0.8.13, somme des CSV de cette exécution : 5 353 instructions couvertes,
 `npx playwright test` : 4 tests, 0 échec, 12,8 s.
 
 Blue/green inchangé : sélecteur `app=web,dcp.track=green`, `web-green` sur `registry:5000/dcp/web:2`, `web-blue` sur `registry:5000/dcp/web:1`. HPA `web-blue` et `web-green` : `cpu: 2%/1%`, `memory: 19%/80%`, 3 replicas, min 1, max 3.
+
+## Interfaces Angular — 11 octobre 2026, 20:55
+
+Les pages Tableau de bord, Docker, Kubernetes, Releases, Monitoring et Administration remplacent les blocs JSON par des cartes, des tableaux et des graphiques Chart.js. Les valeurs absentes restent vides : l’API conteneurs a renvoyé zéro conteneur géré, et elle n’expose ni port ni CPU/RAM de conteneur. La page Namespaces n’affiche que le namespace `dcp` renvoyé par `GET /api/kubernetes/status`.
+
+`PromqlCatalog.series` accepte maintenant `http`, `errors` et `latency`, en réutilisant les requêtes déjà écrites. `monitoring-service` a été recréé. Sonde sur la passerelle, plage `1h` : 61 échantillons pour chacune des cinq séries, message vide. Le tableau de bord affichait alors 8 applications, 1 active, 1 déploiement réussi, 2 échoués, 11 Pods Kubernetes, 6 Services, CPU environ 0,00218 cœur et 1,5 Gio de mémoire JVM. Prometheus annonce toujours l’absence des métriques de Pods ; son propre compte reste 8.
+
+Blue/green, canary, HPA, scale, redémarrage, rollback et construction d’image demandent une confirmation. Aucune de ces actions n’a été confirmée pendant la vérification.
+
+`npx ng test --watch=false` : 10 tests, 0 échec. `npx ng build --configuration=development` : succès. `mvn -B -pl backend/monitoring-service -am test` : 14 tests monitoring, 0 échec. `npx playwright test` : 7 tests, 0 échec, 9,6 s. La suite Maven des huit services n’a pas été relancée. Aucun push.
+
+## Validation finale des interfaces — 11 octobre 2026, 21:04
+
+Le démon Docker 29.0.1 répond. Le socket `/var/run/docker.sock` est monté dans `docker-service` (`srw-rw----`, health HTTP 200). `GET /api/docker/containers` renvoie `[]` pour l’administrateur et pour le compte DEVELOPER, et HTTP 401 sans jeton. `docker ps -aq --filter label=dcp.managed=true` compte 0. Une image porte ce label. Les conteneurs des autres projets ne sont pas listés : le filtre est le label, pas une panne de socket. Les builds créent une image marquée, puis Kubernetes ; ils ne laissent pas un conteneur `dcp.managed` sur l’hôte. `containers()` et `logs()` exigent maintenant un utilisateur authentifié.
+
+Prometheus scrape uniquement le job Actuator `devops-control-plane` (`infrastructure/monitoring/prometheus.yml`). `container_cpu_usage_seconds_total`, `container_memory_working_set_bytes`, `kube_pod_info` et `kube_pod_container_status_restarts_total` sont absents. Les requêtes `cpu` et `memory` ne font plus de repli vers ces séries. `pods()` ne compte plus `up == 1` (les 8 microservices) comme s’il s’agissait de Pods. L’overview live : `podCount` vide, `restartCount` vide, CPU Actuator présent, message « Kubernetes pod metrics are absent. CPU and memory come from Prometheus actuator series. » Les cinq séries `cpu`, `memory`, `http`, `errors`, `latency` ont chacune 61 échantillons sur 1 h.
+
+`mvn -B test` : BUILD SUCCESS à 21:01:49, 40,0 s, 82 tests, 0 échec. Surefire : dcp-common 6, dcp-common-web 7, api-gateway 4, auth-service 11, application-service 5, docker-service 6, kubernetes-service 12, deployment-service 8, cicd-service 9, monitoring-service 14. `npx ng test --watch=false` : 10 tests, 0 échec. `npx ng build --configuration=development` : succès. `npx playwright test` : 7 tests, 0 échec, 9,5 s.
+
+Pages ouvertes sans action destructive : tableau de bord, applications (`vote`, `hello-dcp`), pipeline `038e368b-335d-409d-baee-c09aabf8a326` SUCCEEDED, logs du Pod `dcp-vote-65b9996844-hqxbz` (gunicorn écoute sur le port 80), administration (Kubernetes et Prometheus joignables), paramètres (`admin@dcp.local`, ADMIN). Le compte DEVELOPER reçoit HTTP 403 sur `GET /api/users`. `monitoring-service` et `docker-service` ont été recréés. Aucun conteneur démarré, arrêté ou supprimé. Aucun push.
+
+## SonarQube et Quality Gate — 11 octobre 2026, 23:05
+
+SonarQube Community Build `26.9.0.129388` est `UP` sur `127.0.0.1:9000`. Le jeton d’analyse est dans `DCP_SONAR_TOKEN`. Le mot de passe administrateur a été changé depuis l’interface, parce que SonarQube l’exigeait avant d’ouvrir le projet. Il est dans `SONAR_ADMIN_PASSWORD`. Les deux restent dans `.env`.
+
+Analyse réelle du projet `devops-control-plane` à 22:54, avec les rapports JaCoCo des huit services et des deux bibliothèques, plus le lcov Angular des fichiers exécutés par les 9 tests unitaires. Quality Gate `ERROR` : bugs 3, vulnérabilités 10, code smells 71, couverture 24,7 %, duplications 2,8 %. Les conditions en échec sont les bugs, les vulnérabilités et la couverture sous 30 %. Les code smells et les duplications passent. Le gate n’est pas validé.
+
+`DCP_SONAR_MODE` reste `off`. Un essai temporaire en mode `required` a bloqué le pipeline `7d8d19f7-8940-488a-93da-1edf3cab2817` sur `hello-dcp` avant tout déploiement. Une URL injoignable a renvoyé `SonarQube is unreachable. No analysis result is available.` sans chiffre inventé. L’URL et le mode ont été restaurés. La page Qualité affiche ces mesures et le lien vers le tableau SonarQube. Captures dans `docs/captures/sonar/`.
+
+`mvn -B test` : BUILD SUCCESS à 23:01:57, 1 min 05 s, 90 tests, 0 échec. `npx ng test --watch=false --coverage` : 9 tests, 0 échec. `npx playwright test` : 7 tests, 0 échec, 21,5 s. Aucun push.
+
+## Correction SonarQube — 11 octobre 2026, 23:41
+
+Les 3 bugs et les 10 vulnérabilités de l’analyse de 22:54 ont été corrigés dans le code. Les seuils du Quality Gate n’ont pas changé. `DCP_SONAR_MODE` reste `off`.
+
+L’analyse de 23:37, tâche CE `b6424e96-ef1e-46b8-9127-f41df0b1071e`, est `SUCCESS`. Quality Gate `OK` : bugs 0, vulnérabilités 0, code smells 66, couverture 42,1 %, duplications 2,4 %, couverture du nouveau code 92,9 %, nouvelles violations 0. `GET /api/pipelines/quality` renvoie les mêmes mesures, `mode=off`.
+
+`mvn -B test` : BUILD SUCCESS à 23:40:08, 1 min 17 s, 120 tests, 0 échec. `npx ng test --watch=false --coverage` : 13 tests, 0 échec. `npx ng build --configuration=development` : succès. `npx playwright test` : 7 tests, 0 échec, 14,3 s. Les huit services ont été reconstruits avec l’utilisateur `dcp`. Leurs sondes de vivacité répondent `UP`. La connexion administrateur répond HTTP 200. Kubernetes est joignable. L’API Docker répond HTTP 200. Aucun déploiement d’application, aucun push. Le détail est dans `docs/correction-sonarqube.md`.

@@ -101,6 +101,7 @@ public final class ReleaseManifests {
                     .addToLabels(MANAGED_LABEL, MANAGED_BY)
                 .endMetadata()
                 .withNewSpec()
+                    .withHostnames(ReleasePolicies.routeHost(name))
                     .addNewParentRef()
                         .withName(gatewayName)
                         .withNamespace(namespace)

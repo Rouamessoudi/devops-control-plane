@@ -1,0 +1,3 @@
+# Replace this file with the output of:
+# kubectl --context kind-dcp -n dcp create token prometheus-reader --duration=8760h
+# The real token is gitignored at infrastructure/monitoring/prometheus/k8s-token

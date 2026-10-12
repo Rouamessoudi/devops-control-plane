@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { badgeClass, errorMessage } from './ui';
+import { badgeClass, errorMessage, formatAge, formatBytes, formatMetric } from './ui';
 
 describe('errorMessage', () => {
   it('reads the API detail', () => {
@@ -24,4 +24,5 @@ describe('badgeClass', () => {
     expect(badgeClass('PENDING')).toBe('warn');
     expect(badgeClass(null)).toBe('');
   });
+    expect(formatMetric(8)).toBe('8');
 });

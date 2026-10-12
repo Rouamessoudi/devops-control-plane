@@ -59,6 +59,11 @@ public class KubernetesController {
         return cluster.deployments();
     }
 
+    @GetMapping("/namespaces")
+    public List<KubernetesApi.NamespaceView> namespaces() {
+        return cluster.namespaces();
+    }
+
     @GetMapping("/events")
     public List<KubernetesApi.EventView> events() {
         return cluster.events();

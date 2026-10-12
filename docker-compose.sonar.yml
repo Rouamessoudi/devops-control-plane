@@ -1,0 +1,23 @@
+# Optional SonarQube. It is not started by docker compose up.
+# Start it only when the host has spare RAM:
+# docker compose -f docker-compose.yml -f docker-compose.sonar.yml --profile sonar up -d sonarqube
+services:
+  sonarqube:
+    image: sonarqube:community
+    profiles: ["sonar"]
+    ports:
+      - "127.0.0.1:9000:9000"
+    environment:
+      SONAR_WEB_JAVAOPTS: "-Xmx512m -Xms128m"
+      SONAR_CE_JAVAOPTS: "-Xmx512m -Xms128m"
+      SONAR_SEARCH_JAVAOPTS: "-Xmx512m -Xms128m"
+    mem_limit: 1536m
+    volumes:
+      - sonarqube-data:/opt/sonarqube/data
+      - sonarqube-extensions:/opt/sonarqube/extensions
+      - sonarqube-logs:/opt/sonarqube/logs
+
+volumes:
+  sonarqube-data:
+  sonarqube-extensions:
+  sonarqube-logs:

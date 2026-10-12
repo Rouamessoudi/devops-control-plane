@@ -36,7 +36,7 @@ class MonitoringServiceTest {
 
         assertEquals(0.4, overview.cpuCores());
         assertEquals(2048.0, overview.memoryBytes());
-        assertEquals(8.0, overview.podCount());
+        assertNull(overview.podCount());
         assertNull(overview.restartCount());
         assertEquals("Kubernetes pod metrics are absent. CPU and memory come from Prometheus actuator series.", overview.message());
     }
@@ -82,8 +82,8 @@ class MonitoringServiceTest {
         if (query.contains("jvm_memory_used_bytes")) {
             return 2048.0;
         }
-        if (query.contains("kube_pod_info") || query.contains("up{job")) {
-            return 8.0;
+        if (query.contains("kube_pod_info") || query.contains("kube_pod_status_phase")) {
+            return null;
         }
         return null;
     }

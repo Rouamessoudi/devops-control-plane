@@ -2,7 +2,7 @@ import { Component, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { ApiService } from '../core/api.service';
-import { UserProfile } from '../core/models';
+import { AuditEventView, MonitoringOverview, UserProfile } from '../core/models';
 import { errorMessage } from '../core/ui';
 import { ConfirmDialog } from '../shared/confirm.dialog';
 

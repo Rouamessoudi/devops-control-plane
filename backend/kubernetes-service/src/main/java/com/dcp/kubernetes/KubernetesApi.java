@@ -21,8 +21,13 @@ public final class KubernetesApi {
             int restarts,
             String node,
             List<String> images,
-            String createdAt
+            String createdAt,
+            String cpu,
+            String memory
     ) {
+    }
+
+    public record NamespaceView(String name, String status) {
     }
 
     public record DeploymentView(

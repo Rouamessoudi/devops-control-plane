@@ -14,7 +14,7 @@ import java.time.Duration;
 import java.util.concurrent.Executor;
 
 @Configuration
-@EnableConfigurationProperties({PipelineProperties.class, GithubProperties.class, ServiceClientProperties.class})
+@EnableConfigurationProperties({PipelineProperties.class, GithubProperties.class, ServiceClientProperties.class, SonarProperties.class})
 public class PipelineConfiguration {
 
     @Bean

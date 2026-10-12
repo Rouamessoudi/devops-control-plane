@@ -21,6 +21,8 @@ import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.api.model.apps.DeploymentCondition;
 import io.fabric8.kubernetes.api.model.apps.ReplicaSet;
 import io.fabric8.kubernetes.api.model.gatewayapi.v1.HTTPRoute;
+import io.fabric8.kubernetes.api.model.Namespace;
+import io.fabric8.kubernetes.api.model.metrics.v1beta1.ContainerMetrics;
 import io.fabric8.kubernetes.api.model.metrics.v1beta1.PodMetrics;
 import io.fabric8.kubernetes.api.model.networking.v1.Ingress;
 import io.fabric8.kubernetes.api.model.networking.v1.IngressBuilder;
@@ -36,9 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
@@ -75,7 +76,7 @@ public class KubernetesClusterService {
 
     public List<KubernetesApi.PodView> pods() {
         List<Pod> items = read(() -> client.pods().inNamespace(namespace()).list().getItems());
-        return mapPods(items);
+        return mapPods(items, podMetrics());
     }
 
     public KubernetesApi.PodView pod(String name) {
@@ -84,7 +85,23 @@ public class KubernetesClusterService {
         if (pod == null) {
             throw ApiException.notFound("Pod not found");
         }
-        return toPod(pod);
+        return toPod(pod, podMetrics().get(safe));
+    }
+
+    public List<KubernetesApi.NamespaceView> namespaces() {
+        List<Namespace> items = read(() -> client.namespaces().list().getItems());
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        List<KubernetesApi.NamespaceView> views = new ArrayList<>();
+        for (Namespace item : items) {
+            String name = item.getMetadata() == null ? null : item.getMetadata().getName();
+            String status = item.getStatus() == null ? null : item.getStatus().getPhase();
+            if (name != null) {
+                views.add(new KubernetesApi.NamespaceView(name, status));
+            }
+        }
+        return views;
     }
 
     public String podLogs(String name, int tail) {
@@ -345,8 +362,11 @@ public class KubernetesClusterService {
                 operations.record(user.userId(), "CANARY", base, "FAILED", message);
                 return new KubernetesApi.ReleaseView(base, namespace, "CANARY", "canary", weight, "FAILED", message, false);
             }
+            String host = ReleasePolicies.routeHost(base);
             String message = "HTTPRoute " + base + " accepted by Gateway " + gateway
-                    + ". stable=" + (100 - weight) + " canary=" + weight;
+                    + " for host " + host
+                    + ". stable=" + (100 - weight) + " canary=" + weight
+                    + ". Acceptance is not a counted HTTP split.";
             operations.record(user.userId(), "CANARY", base, "APPLIED", message);
             return new KubernetesApi.ReleaseView(base, namespace, "CANARY", "canary", weight, "APPLIED", message, true);
         } catch (RuntimeException ex) {
@@ -719,22 +739,23 @@ public class KubernetesClusterService {
     }
 
     private static <T> T within(Supplier<T> call, T onTimeout) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        CompletableFuture<T> task = CompletableFuture.supplyAsync(call);
         try {
-            return executor.submit(call::get).get(4, TimeUnit.SECONDS);
+            return task.get(4, TimeUnit.SECONDS);
         } catch (TimeoutException ex) {
+            task.cancel(true);
             return onTimeout;
         } catch (ExecutionException ex) {
+            task.cancel(true);
             Throwable cause = ex.getCause() == null ? ex : ex.getCause();
             if (cause instanceof RuntimeException runtime) {
                 throw runtime;
             }
             throw new IllegalStateException(cause);
         } catch (InterruptedException ex) {
+            task.cancel(true);
             Thread.currentThread().interrupt();
             throw ApiException.unavailable("Kubernetes API is unavailable");
-        } finally {
-            executor.shutdownNow();
         }
     }
 
@@ -899,18 +920,37 @@ public class KubernetesClusterService {
         return new KubernetesApi.K8sDeploymentView(name, namespace, image, replicas, readyCount(deployment), revision, status, messageFor(status, warning));
     }
 
-    private static List<KubernetesApi.PodView> mapPods(List<Pod> items) {
+    private Map<String, PodMetrics> podMetrics() {
+        Map<String, PodMetrics> usage = new LinkedHashMap<>();
+        try {
+            var listed = client.top().pods().inNamespace(namespace()).metrics();
+            if (listed == null || listed.getItems() == null) {
+                return usage;
+            }
+            for (PodMetrics item : listed.getItems()) {
+                if (item.getMetadata() != null && item.getMetadata().getName() != null) {
+                    usage.put(item.getMetadata().getName(), item);
+                }
+            }
+        } catch (RuntimeException ex) {
+            return usage;
+        }
+        return usage;
+    }
+
+    private static List<KubernetesApi.PodView> mapPods(List<Pod> items, Map<String, PodMetrics> usage) {
         if (items == null || items.isEmpty()) {
             return List.of();
         }
         List<KubernetesApi.PodView> views = new ArrayList<>();
         for (Pod pod : items) {
-            views.add(toPod(pod));
+            String name = pod.getMetadata() == null ? null : pod.getMetadata().getName();
+            views.add(toPod(pod, name == null ? null : usage.get(name)));
         }
         return views;
     }
 
-    private static KubernetesApi.PodView toPod(Pod pod) {
+    private static KubernetesApi.PodView toPod(Pod pod, PodMetrics metrics) {
         String name = metaName(pod.getMetadata());
         String namespace = metaNamespace(pod.getMetadata());
         String createdAt = pod.getMetadata() == null ? null : pod.getMetadata().getCreationTimestamp();
@@ -935,7 +975,28 @@ public class KubernetesClusterService {
                 }
             });
         }
-        return new KubernetesApi.PodView(name, namespace, phase, restarts, node, List.copyOf(images), createdAt);
+        String cpu = null;
+        String memory = null;
+        if (metrics != null && metrics.getContainers() != null) {
+            List<String> cpus = new ArrayList<>();
+            List<String> memories = new ArrayList<>();
+            for (ContainerMetrics container : metrics.getContainers()) {
+                if (container.getUsage() == null) {
+                    continue;
+                }
+                Quantity cpuQuantity = container.getUsage().get("cpu");
+                Quantity memoryQuantity = container.getUsage().get("memory");
+                if (cpuQuantity != null) {
+                    cpus.add(cpuQuantity.toString());
+                }
+                if (memoryQuantity != null) {
+                    memories.add(memoryQuantity.toString());
+                }
+            }
+            cpu = cpus.isEmpty() ? null : String.join(", ", cpus);
+            memory = memories.isEmpty() ? null : String.join(", ", memories);
+        }
+        return new KubernetesApi.PodView(name, namespace, phase, restarts, node, List.copyOf(images), createdAt, cpu, memory);
     }
 
     private static KubernetesApi.DeploymentView toDeployment(Deployment deployment) {

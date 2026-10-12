@@ -1,0 +1,59 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: devops-control-plane
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - api-gateway:8080
+          - auth-service:8081
+          - application-service:8082
+          - docker-service:8083
+          - kubernetes-service:8084
+          - deployment-service:8085
+          - cicd-service:8086
+          - monitoring-service:8087
+        labels:
+          platform: dcp
+
+  - job_name: kube-state-metrics
+    scheme: https
+    metrics_path: /api/v1/namespaces/kube-system/services/kube-state-metrics:8080/proxy/metrics
+    bearer_token_file: /etc/prometheus/k8s-token
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets:
+          - dcp-control-plane:6443
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: kube_pod_info|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_deployment_status_replicas|kube_deployment_status_replicas_available|kube_deployment_spec_replicas
+        action: keep
+      - source_labels: [namespace]
+        regex: dcp
+        action: keep
+
+  - job_name: kubelet-cadvisor
+    scheme: https
+    metrics_path: /api/v1/nodes/dcp-control-plane/proxy/metrics/cadvisor
+    bearer_token_file: /etc/prometheus/k8s-token
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets:
+          - dcp-control-plane:6443
+    metric_relabel_configs:
+      - source_labels: [namespace]
+        regex: dcp
+        action: keep
+      - source_labels: [__name__]
+        regex: container_cpu_usage_seconds_total|container_memory_working_set_bytes
+        action: keep
+      - source_labels: [container]
+        regex: "|POD"
+        action: drop

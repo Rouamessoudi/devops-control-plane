@@ -1,0 +1,10 @@
+{
+  "name": "DevOps Control Plane",
+  "conditions": [
+    { "metric": "bugs", "op": "GT", "error": "0" },
+    { "metric": "vulnerabilities", "op": "GT", "error": "0" },
+    { "metric": "code_smells", "op": "GT", "error": "100" },
+    { "metric": "coverage", "op": "LT", "error": "30" },
+    { "metric": "duplicated_lines_density", "op": "GT", "error": "3" }
+  ]
+}

@@ -12,14 +12,20 @@ class PromqlCatalogTest {
 
     @Test
     void cpuAndMemoryUseTheValidatedNamespace() {
-        assertEquals(
-                "sum(process_cpu_usage{job=\"devops-control-plane\"}) or sum(rate(container_cpu_usage_seconds_total{namespace=\"dcp\",container!=\"\"}[5m]))",
-                catalog.cpu());
-        assertEquals(
-                "sum(jvm_memory_used_bytes{job=\"devops-control-plane\"}) or sum(container_memory_working_set_bytes{namespace=\"dcp\",container!=\"\"})",
-                catalog.memory());
+        assertEquals("sum(process_cpu_usage{job=\"devops-control-plane\"})", catalog.cpu());
+        assertEquals("sum(jvm_memory_used_bytes{job=\"devops-control-plane\"})", catalog.memory());
+        assertEquals("count(kube_pod_info{namespace=\"dcp\"})", catalog.pods());
         assertEquals(catalog.cpu(), catalog.series("cpu"));
         assertEquals(catalog.memory(), catalog.series("memory"));
+        assertEquals(catalog.httpRate(), catalog.series("http"));
+        assertEquals(catalog.httpErrors(), catalog.series("errors"));
+        assertEquals(catalog.httpLatency(), catalog.series("latency"));
+        assertEquals(catalog.httpClientErrors(), catalog.series("clientErrors"));
+        assertEquals(catalog.podCpu(), catalog.series("podCpu"));
+        assertEquals(catalog.podMemory(), catalog.series("podMemory"));
+        assertEquals(catalog.restarts(), catalog.series("restarts"));
+        assertEquals(catalog.availableDeployments(), catalog.series("deployments"));
+        assertEquals("count(up{job=\"devops-control-plane\"} == 1)", catalog.availability());
     }
 
     @Test

@@ -5,11 +5,20 @@ import {
   ApplicationView,
   BuildView,
   DeploymentView,
+  DockerContainerRow,
+  DockerImageListing,
   EnvVarView,
+  HistoryView,
+  K8sDeploymentRow,
+  K8sEventRow,
+  K8sIngressRow,
+  K8sServiceRow,
   MetricSeries,
   MonitoringOverview,
   PageResponse,
   PipelineView,
+  PodView,
+  QualityView,
   UserProfile
 } from './models';
 
@@ -41,8 +50,8 @@ export class ApiService {
     return this.http.delete<void>(`/api/applications/${id}`);
   }
 
-  history(id: string): Observable<unknown[]> {
-    return this.http.get<unknown[]>(`/api/applications/${id}/history`);
+  history(id: string): Observable<HistoryView[]> {
+    return this.http.get<HistoryView[]>(`/api/applications/${id}/history`);
   }
 
   env(id: string): Observable<EnvVarView[]> {
@@ -93,12 +102,12 @@ export class ApiService {
     return this.http.get<BuildView>(`/api/docker/builds/${id}`);
   }
 
-  images(): Observable<unknown> {
-    return this.http.get('/api/docker/images');
+  images(): Observable<DockerImageListing> {
+    return this.http.get<DockerImageListing>('/api/docker/images');
   }
 
-  containers(): Observable<unknown> {
-    return this.http.get('/api/docker/containers');
+  containers(): Observable<DockerContainerRow[]> {
+    return this.http.get<DockerContainerRow[]>('/api/docker/containers');
   }
 
   containerLogs(id: string): Observable<string> {
@@ -109,6 +118,11 @@ export class ApiService {
     return this.http.get<{ reachable: boolean; namespace: string; message: string | null }>('/api/kubernetes/status');
   }
 
+  k8s(resource: 'pods'): Observable<PodView[]>;
+  k8s(resource: 'services'): Observable<K8sServiceRow[]>;
+  k8s(resource: 'ingresses'): Observable<K8sIngressRow[]>;
+  k8s(resource: 'deployments'): Observable<K8sDeploymentRow[]>;
+  k8s(resource: 'events'): Observable<K8sEventRow[]>;
   k8s(resource: 'pods' | 'services' | 'ingresses' | 'deployments' | 'events'): Observable<unknown[]> {
     return this.http.get<unknown[]>(`/api/kubernetes/${resource}`);
   }
@@ -154,6 +168,10 @@ export class ApiService {
     return this.http.post(`/api/kubernetes/deployments/${encodeURIComponent(name)}/autoscaler`, body);
   }
 
+  pipelines(): Observable<PageResponse<PipelineView>> {
+    return this.http.get<PageResponse<PipelineView>>('/api/pipelines', { params: { page: '0', size: '50' } });
+  }
+
   startPipeline(applicationId: string): Observable<PipelineView> {
     return this.http.post<PipelineView>('/api/pipelines', { applicationId });
   }
@@ -170,12 +188,20 @@ export class ApiService {
     return this.http.get<MonitoringOverview>('/api/monitoring/overview');
   }
 
-  series(metric: 'cpu' | 'memory', range: string): Observable<MetricSeries> {
+  series(metric: 'cpu' | 'memory' | 'http' | 'errors' | 'latency' | 'clientErrors' | 'podCpu' | 'podMemory' | 'restarts' | 'deployments', range: string): Observable<MetricSeries> {
     return this.http.get<MetricSeries>('/api/monitoring/series', { params: { metric, range } });
   }
 
   grafana(): Observable<{ url: string; dashboardPath: string }> {
     return this.http.get<{ url: string; dashboardPath: string }>('/api/monitoring/grafana');
+  }
+
+  quality(): Observable<QualityView> {
+    return this.http.get<QualityView>('/api/pipelines/quality');
+  }
+
+  namespaces(): Observable<{ name: string; status: string }[]> {
+    return this.http.get<{ name: string; status: string }[]>('/api/kubernetes/namespaces');
   }
 
   monitorLogs(pod: string): Observable<string> {

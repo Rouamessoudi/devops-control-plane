@@ -1,4 +1,4 @@
-﻿name: devops-control-plane
+name: devops-control-plane
 
 x-java: &java
   restart: unless-stopped
@@ -30,6 +30,11 @@ x-java: &java
     DCP_ALLOWED_GITHUB_ORGS: ${DCP_ALLOWED_GITHUB_ORGS:-}
     DCP_ENFORCE_GITHUB_ALLOWLIST: ${DCP_ENFORCE_GITHUB_ALLOWLIST:-false}
     DCP_PIPELINE_MODE: ${DCP_PIPELINE_MODE:-local}
+    DCP_SONAR_MODE: ${DCP_SONAR_MODE:-off}
+    DCP_SONAR_URL: ${DCP_SONAR_URL:-http://sonarqube:9000}
+    DCP_SONAR_PROJECT_KEY: ${DCP_SONAR_PROJECT_KEY:-devops-control-plane}
+    DCP_SONAR_PUBLIC_URL: ${DCP_SONAR_PUBLIC_URL:-http://127.0.0.1:9000}
+    DCP_SONAR_TOKEN: ${DCP_SONAR_TOKEN:-}
     PROMETHEUS_URL: http://prometheus:9090
     GRAFANA_URL: http://localhost:13001
     DCP_NAMESPACE: dcp
@@ -118,6 +123,9 @@ services:
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    # The socket is root:root mode 660. The process user is not root; it only joins that group.
+    group_add:
+      - "0"
     ports:
       - "127.0.0.1:18083:8083"
 
@@ -173,6 +181,7 @@ services:
       - --storage.tsdb.retention.time=7d
     volumes:
       - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "127.0.0.1:19090:9090"

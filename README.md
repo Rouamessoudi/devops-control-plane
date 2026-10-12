@@ -24,12 +24,14 @@ Un cluster kind nommé `dcp` se raccorde à `kubernetes-service` par `docker-com
 
 - Connexion, rôles et administration des comptes.
 - Fiche application liée à un dépôt GitHub HTTPS.
-- Pipeline local : clone, tests si un `pom.xml` ou un `package.json` est à la racine, image Docker, poussée vers le registre, déploiement Kubernetes.
+- Pipeline local : `prepare`, `sonar-analysis`, `quality-gate`, `build-and-test`, `deploy`, `verify`. En mode `off`, les deux étapes Sonar sont ignorées et le déploiement continue. En mode `required`, un Quality Gate différent de `OK` bloque le déploiement.
+- Page Qualité branchée sur SonarQube. Le projet `devops-control-plane` a été réanalysé le 11 octobre 2026 à 23:37. Le Quality Gate observé est `OK` (bugs 0, vulnérabilités 0, code smells 66, couverture 42,1 %, duplications 2,4 %). `DCP_SONAR_MODE` reste `off`, parce que la clé de projet est celle de la plateforme.
 - Blue/green : le Service ne change de sélecteur qu'une fois les Pods prêts.
 - Canary par HTTPRoute Gateway API, poids 10, 25, 50 ou 100. Le trafic n'est marqué appliqué que si les Pods sont prêts et que le Gateway accepte la route.
 - Rollback d'une révision de Deployment, réservé à un administrateur. Ce n'est pas le retour à l'image précédente d'une fiche application.
 - Horizontal Pod Autoscaler lorsque Metrics Server répond.
-- Tableaux Prometheus et Grafana.
+- Tableaux de bord Angular : cartes, tableaux et graphiques Prometheus. Les courbes CPU, mémoire, HTTP, erreurs et latence viennent des séries Actuator. Prometheus ne scrape pas les Pods.
+- Inventaire Docker limité aux images et conteneurs marqués `dcp.managed=true`.
 
 ## Technologies
 
@@ -116,7 +118,9 @@ npx ng test --watch=false
 npx playwright test
 ```
 
-Le 11 octobre 2026 : Maven `mvn -B test` BUILD SUCCESS à 19:59 (34,6 s) ; `npx ng test --watch=false` 9 tests, 4 fichiers, 0 échec ; `npx playwright test` 4 tests, 0 échec, 12,8 s. Playwright a besoin de Compose et de `ng serve`. Le détail est dans `docs/rapport-tests.md` et `docs/PROGRESS.md`.
+Le 11 octobre 2026, 23:40 : `mvn -B test` BUILD SUCCESS en 1 min 17 s, 120 tests, 0 échec (dcp-common 6, dcp-common-web 7, api-gateway 4, auth-service 11, application-service 5, docker-service 17, kubernetes-service 16, deployment-service 8, cicd-service 32, monitoring-service 14). `npx ng test --watch=false --coverage` : 13 tests, 0 échec. `npx ng build --configuration=development` : succès. `npx playwright test` : 7 tests, 0 échec, 14,3 s. Playwright a besoin de Compose et de `ng serve`. Le détail SonarQube est dans `docs/correction-sonarqube.md`.
+
+Le jeton SonarQube et le mot de passe administrateur SonarQube sont dans `.env` (`DCP_SONAR_TOKEN`, `SONAR_ADMIN_PASSWORD`). Ils ne sont pas versionnés.
 
 ## Ce qui n'est pas dans le dépôt
 

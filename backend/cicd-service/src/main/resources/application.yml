@@ -26,6 +26,12 @@ dcp:
     internal-token: ${INTERNAL_SERVICE_TOKEN:dev-only-internal-token-change-me}
   pipeline:
     mode: ${DCP_PIPELINE_MODE:local}
+  sonar:
+    mode: ${DCP_SONAR_MODE:off}
+    url: ${DCP_SONAR_URL:}
+    project-key: ${DCP_SONAR_PROJECT_KEY:devops-control-plane}
+    token: ${DCP_SONAR_TOKEN:}
+    public-url: ${DCP_SONAR_PUBLIC_URL:http://127.0.0.1:9000}
   github:
     token: ${GITHUB_TOKEN:}
     webhook-secret: ${GITHUB_WEBHOOK_SECRET:}

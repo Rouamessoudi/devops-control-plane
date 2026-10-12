@@ -11,6 +11,17 @@ services:
       - default
       - kind
 
+  prometheus:
+    mem_limit: 384m
+    volumes:
+      - ./infrastructure/monitoring/prometheus.k8s.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./infrastructure/monitoring/prometheus/k8s-token:/etc/prometheus/k8s-token:ro
+      - prometheus-data:/prometheus
+    networks:
+      - default
+      - kind
+
 networks:
   kind:
     external: true

@@ -2,7 +2,7 @@
   "uid": "dcp-overview",
   "title": "DevOps Control Plane",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
   "timezone": "browser",
@@ -54,6 +54,54 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [{ "refId": "A", "expr": "count(up{job=\"devops-control-plane\"} == 1)" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Erreurs HTTP 4xx / s",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (application) (rate(http_server_requests_seconds_count{job=\"devops-control-plane\",status=~\"4..\"}[5m]))" }]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Disponibilité des microservices (up)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "up{job=\"devops-control-plane\"}" }]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "CPU des Pods Kubernetes",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"dcp\",container!=\"\",container!=\"POD\"}[5m]))" }]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "RAM des Pods Kubernetes",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"dcp\",container!=\"\",container!=\"POD\"})" }]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Redémarrages de conteneurs",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"dcp\"})" }]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Replicas disponibles des Deployments",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "kube_deployment_status_replicas_available{namespace=\"dcp\"}" }]
     }
   ]
 }

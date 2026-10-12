@@ -102,6 +102,7 @@ public class DockerQueryService {
     }
 
     public List<DockerApi.ContainerView> containers() {
+        CurrentUser.require();
         List<Container> live = docker.listManagedContainers();
         if (live == null || live.isEmpty()) {
             return List.of();
@@ -120,6 +121,7 @@ public class DockerQueryService {
     }
 
     public String logs(String id) {
+        CurrentUser.require();
         return docker.containerLogs(id);
     }
 

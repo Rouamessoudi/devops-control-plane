@@ -12,6 +12,8 @@ import { LoginPage } from './pages/login.page';
 import { LogsPage } from './pages/logs.page';
 import { MonitoringPage } from './pages/monitoring.page';
 import { PipelinePage } from './pages/pipeline.page';
+import { PipelinesPage } from './pages/pipelines.page';
+import { QualityPage } from './pages/quality.page';
 import { RegisterPage } from './pages/register.page';
 import { ScalingPage } from './pages/scaling.page';
 import { SettingsPage } from './pages/settings.page';
@@ -36,7 +38,10 @@ export const routes: Routes = [
       { path: 'kubernetes/services', component: KubernetesPage, data: { view: 'services' } },
       { path: 'kubernetes/ingresses', component: KubernetesPage, data: { view: 'ingresses' } },
       { path: 'kubernetes/deployments', component: KubernetesPage, data: { view: 'deployments' } },
+      { path: 'kubernetes/namespaces', component: KubernetesPage, data: { view: 'namespaces' } },
       { path: 'kubernetes/scaling', component: ScalingPage },
+      { path: 'pipelines', component: PipelinesPage },
+      { path: 'quality', component: QualityPage },
       { path: 'pipelines/:id', component: PipelinePage },
       { path: 'monitoring', component: MonitoringPage },
       { path: 'logs', component: LogsPage },

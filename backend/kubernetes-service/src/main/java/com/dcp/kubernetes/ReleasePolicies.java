@@ -11,6 +11,13 @@ public final class ReleasePolicies {
     private ReleasePolicies() {
     }
 
+    public static String routeHost(String name) {
+        if (name == null || name.isBlank()) {
+            throw ApiException.badRequest("name is required");
+        }
+        return name + ".dcp.local";
+    }
+
     public static int canaryWeight(int weight) {
         if (!CANARY_WEIGHTS.contains(weight)) {
             throw ApiException.badRequest("Canary weight must be 10, 25, 50 or 100");

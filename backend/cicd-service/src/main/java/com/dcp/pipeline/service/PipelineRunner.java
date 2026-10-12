@@ -5,6 +5,8 @@ import com.dcp.pipeline.api.PipelineDtos.DeploymentCommand;
 import com.dcp.pipeline.api.PipelineDtos.DeploymentView;
 import com.dcp.pipeline.api.PipelineDtos.NotificationCommand;
 import com.dcp.pipeline.api.PipelineDtos.PipelineView;
+import com.dcp.pipeline.sonar.SonarPolicy;
+import com.dcp.pipeline.sonar.SonarPolicy.SonarDecision;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -24,25 +26,38 @@ public class PipelineRunner {
     private final PipelineStore store;
     private final InternalRestClient deploymentClient;
     private final InternalRestClient notificationClient;
+    private final SonarPolicy sonar;
 
     public PipelineRunner(PipelineStore store,
                           @Qualifier("deploymentClient") InternalRestClient deploymentClient,
-                          @Qualifier("notificationClient") InternalRestClient notificationClient) {
+                          @Qualifier("notificationClient") InternalRestClient notificationClient,
+                          SonarPolicy sonar) {
         this.store = store;
         this.deploymentClient = deploymentClient;
         this.notificationClient = notificationClient;
+        this.sonar = sonar;
     }
 
     public void runLocal(UUID pipelineId, UUID applicationId, UUID requestedBy) {
         try {
             store.markPrepared(pipelineId);
+            SonarDecision decision = sonar.evaluate();
+            if (decision.skip()) {
+                store.recordQuality(pipelineId, PipelineStore.SKIPPED, decision.log());
+            } else if (!decision.pass()) {
+                store.recordQuality(pipelineId, PipelineStore.FAILED, decision.log());
+                notify(pipelineId);
+                return;
+            } else {
+                store.recordQuality(pipelineId, PipelineStore.SUCCEEDED, decision.log());
+            }
             DeploymentView created = deploymentClient.post(
                     "/internal/deployments",
                     new DeploymentCommand(applicationId, requestedBy, 1, "PIPELINE"),
                     DeploymentView.class);
-            if (created == null || created.getId() == null) {
+            if (created == null || created.id() == null) {
                 store.failOpenSteps(pipelineId, "Deployment service did not return a deployment id");
-            } else if (terminal(created.getStatus())) {
+            } else if (terminal(created.status())) {
                 store.finishFromDeployment(pipelineId, created);
             } else {
                 store.markBuildRunning(pipelineId);
@@ -63,12 +78,12 @@ public class PipelineRunner {
     private DeploymentView poll(DeploymentView created) throws InterruptedException {
         DeploymentView latest = created;
         Instant deadline = Instant.now().plus(POLL_TIMEOUT);
-        while (!terminal(latest.getStatus())) {
+        while (!terminal(latest.status())) {
             if (!Instant.now().isBefore(deadline)) {
                 return latest;
             }
             Thread.sleep(POLL_INTERVAL.toMillis());
-            latest = deploymentClient.get("/internal/deployments/" + created.getId(), DeploymentView.class);
+            latest = deploymentClient.get("/internal/deployments/" + created.id(), DeploymentView.class);
             if (latest == null) {
                 throw new IllegalStateException("Deployment service returned an empty deployment");
             }

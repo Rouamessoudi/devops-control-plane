@@ -30,6 +30,7 @@ public class PipelineStore {
     static final String SUCCEEDED = "SUCCEEDED";
     static final String FAILED = "FAILED";
     static final String PENDING = "PENDING";
+    static final String SKIPPED = "SKIPPED";
     static final String MANUAL = "MANUAL";
     static final String SUCCESS = "success";
     static final String FAILURE = "failure";
@@ -38,6 +39,8 @@ public class PipelineStore {
     static final String BUILD = "build-and-test";
     static final String DEPLOY = "deploy";
     static final String VERIFY = "verify";
+    static final String SONAR = "sonar-analysis";
+    static final String GATE = "quality-gate";
     static final String DISPATCH = "dispatch";
     static final String AWAIT = "await-webhook";
 
@@ -97,21 +100,37 @@ public class PipelineStore {
     @Transactional
     public void finishFromDeployment(UUID id, DeploymentView deployment) {
         PipelineEntity pipeline = load(id);
-        String status = deployment == null ? null : deployment.getStatus();
-        if ("SUCCEEDED".equalsIgnoreCase(status)) {
-            String image = deployment.getFullImage() == null ? "" : deployment.getFullImage();
+        if (deployment != null && SUCCEEDED.equalsIgnoreCase(deployment.status())) {
+            String image = deployment.fullImage() == null ? "" : deployment.fullImage();
             String buildLog = image.isBlank() ? "Deployment succeeded" : "image=" + image;
-            complete(requireStep(pipeline, BUILD), SUCCEEDED, buildLog, deployment.getStartedAt(), deployment.getFinishedAt());
-            complete(requireStep(pipeline, DEPLOY), SUCCEEDED, kubernetesLog(deployment), deployment.getStartedAt(), deployment.getFinishedAt());
+            complete(requireStep(pipeline, BUILD), SUCCEEDED, buildLog, deployment.startedAt(), deployment.finishedAt());
+            complete(requireStep(pipeline, DEPLOY), SUCCEEDED, kubernetesLog(deployment), deployment.startedAt(), deployment.finishedAt());
             complete(requireStep(pipeline, VERIFY), SUCCEEDED, kubernetesLog(deployment), Instant.now(), Instant.now());
             close(pipeline, SUCCEEDED, SUCCESS);
             return;
         }
+        String status = deployment == null ? null : deployment.status();
         String error = failureMessage(deployment, status);
         complete(requireStep(pipeline, BUILD), FAILED, error, started(deployment), Instant.now());
         complete(requireStep(pipeline, DEPLOY), FAILED, error, started(deployment), Instant.now());
         complete(requireStep(pipeline, VERIFY), FAILED, error, Instant.now(), Instant.now());
         close(pipeline, FAILED, FAILURE);
+    }
+
+    @Transactional
+    public void recordQuality(UUID id, String status, String log) {
+        PipelineEntity pipeline = load(id);
+        Instant now = Instant.now();
+        complete(requireStep(pipeline, SONAR), status, log, now, now);
+        complete(requireStep(pipeline, GATE), status, log, now, now);
+        if (FAILED.equals(status)) {
+            for (PipelineStepEntity step : pipeline.getSteps()) {
+                if (PENDING.equals(step.getStatus())) {
+                    complete(step, FAILED, "Not started because the quality gate blocked the deployment", now, now);
+                }
+            }
+            close(pipeline, FAILED, FAILURE);
+        }
     }
 
     @Transactional
@@ -123,14 +142,15 @@ public class PipelineStore {
         String text = message == null || message.isBlank() ? "Pipeline failed" : message;
         Instant now = Instant.now();
         for (PipelineStepEntity step : pipeline.getSteps()) {
-            if (!SUCCEEDED.equals(step.getStatus())) {
-                if (step.getStartedAt() == null) {
-                    step.setStartedAt(now);
-                }
-                step.setStatus(FAILED);
-                step.setFinishedAt(now);
-                step.setLogText(append(step.getLogText(), text));
+            if (SUCCEEDED.equals(step.getStatus()) || SKIPPED.equals(step.getStatus())) {
+                continue;
             }
+            if (step.getStartedAt() == null) {
+                step.setStartedAt(now);
+            }
+            step.setStatus(FAILED);
+            step.setFinishedAt(now);
+            step.setLogText(append(step.getLogText(), text));
         }
         close(pipeline, FAILED, FAILURE);
     }
@@ -307,8 +327,8 @@ public class PipelineStore {
     }
 
     private static String failureMessage(DeploymentView deployment, String status) {
-        if (deployment != null && deployment.getErrorMessage() != null && !deployment.getErrorMessage().isBlank()) {
-            return deployment.getErrorMessage();
+        if (deployment != null && deployment.errorMessage() != null && !deployment.errorMessage().isBlank()) {
+            return deployment.errorMessage();
         }
         if (status == null || status.isBlank() || "RUNNING".equalsIgnoreCase(status) || "PENDING".equalsIgnoreCase(status)) {
             return "Deployment did not reach a terminal state within 10 minutes";
@@ -317,15 +337,15 @@ public class PipelineStore {
     }
 
     private static Instant started(DeploymentView deployment) {
-        if (deployment == null || deployment.getStartedAt() == null) {
+        if (deployment == null || deployment.startedAt() == null) {
             return Instant.now();
         }
-        return deployment.getStartedAt();
+        return deployment.startedAt();
     }
 
     static String kubernetesLog(DeploymentView deployment) {
-        String name = deployment.getK8sDeploymentName() == null ? "" : deployment.getK8sDeploymentName();
-        String revision = deployment.getK8sRevision() == null ? "" : String.valueOf(deployment.getK8sRevision());
+        String name = deployment.k8sDeploymentName() == null ? "" : deployment.k8sDeploymentName();
+        String revision = deployment.k8sRevision() == null ? "" : String.valueOf(deployment.k8sRevision());
         return "k8sDeploymentName=" + name + " revision=" + revision;
     }
 

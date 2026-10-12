@@ -92,150 +92,22 @@ public final class PipelineDtos {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class DeploymentView {
-        private UUID id;
-        private UUID applicationId;
-        private UUID requestedBy;
-        private String imageRepository;
-        private String imageTag;
-        private String fullImage;
-        private Integer replicas;
-        private String environment;
-        private String trigger;
-        private String status;
-        private String k8sDeploymentName;
-        private Object k8sRevision;
-        private String errorMessage;
-        private Instant createdAt;
-        private Instant startedAt;
-        private Instant finishedAt;
-
-        public UUID getId() {
-            return id;
-        }
-
-        public void setId(UUID id) {
-            this.id = id;
-        }
-
-        public UUID getApplicationId() {
-            return applicationId;
-        }
-
-        public void setApplicationId(UUID applicationId) {
-            this.applicationId = applicationId;
-        }
-
-        public UUID getRequestedBy() {
-            return requestedBy;
-        }
-
-        public void setRequestedBy(UUID requestedBy) {
-            this.requestedBy = requestedBy;
-        }
-
-        public String getImageRepository() {
-            return imageRepository;
-        }
-
-        public void setImageRepository(String imageRepository) {
-            this.imageRepository = imageRepository;
-        }
-
-        public String getImageTag() {
-            return imageTag;
-        }
-
-        public void setImageTag(String imageTag) {
-            this.imageTag = imageTag;
-        }
-
-        public String getFullImage() {
-            return fullImage;
-        }
-
-        public void setFullImage(String fullImage) {
-            this.fullImage = fullImage;
-        }
-
-        public Integer getReplicas() {
-            return replicas;
-        }
-
-        public void setReplicas(Integer replicas) {
-            this.replicas = replicas;
-        }
-
-        public String getEnvironment() {
-            return environment;
-        }
-
-        public void setEnvironment(String environment) {
-            this.environment = environment;
-        }
-
-        public String getTrigger() {
-            return trigger;
-        }
-
-        public void setTrigger(String trigger) {
-            this.trigger = trigger;
-        }
-
-        public String getStatus() {
-            return status;
-        }
-
-        public void setStatus(String status) {
-            this.status = status;
-        }
-
-        public String getK8sDeploymentName() {
-            return k8sDeploymentName;
-        }
-
-        public void setK8sDeploymentName(String k8sDeploymentName) {
-            this.k8sDeploymentName = k8sDeploymentName;
-        }
-
-        public Object getK8sRevision() {
-            return k8sRevision;
-        }
-
-        public void setK8sRevision(Object k8sRevision) {
-            this.k8sRevision = k8sRevision;
-        }
-
-        public String getErrorMessage() {
-            return errorMessage;
-        }
-
-        public void setErrorMessage(String errorMessage) {
-            this.errorMessage = errorMessage;
-        }
-
-        public Instant getCreatedAt() {
-            return createdAt;
-        }
-
-        public void setCreatedAt(Instant createdAt) {
-            this.createdAt = createdAt;
-        }
-
-        public Instant getStartedAt() {
-            return startedAt;
-        }
-
-        public void setStartedAt(Instant startedAt) {
-            this.startedAt = startedAt;
-        }
-
-        public Instant getFinishedAt() {
-            return finishedAt;
-        }
-
-        public void setFinishedAt(Instant finishedAt) {
-            this.finishedAt = finishedAt;
-        }
+    public record DeploymentView(
+            UUID id,
+            UUID applicationId,
+            UUID requestedBy,
+            String imageRepository,
+            String imageTag,
+            String fullImage,
+            Integer replicas,
+            String environment,
+            String trigger,
+            String status,
+            String k8sDeploymentName,
+            Object k8sRevision,
+            String errorMessage,
+            Instant createdAt,
+            Instant startedAt,
+            Instant finishedAt) {
     }
 }

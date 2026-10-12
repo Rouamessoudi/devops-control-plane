@@ -7,6 +7,7 @@ import com.dcp.pipeline.api.PipelineDtos.PipelineAuditEvent;
 import com.dcp.pipeline.api.PipelineDtos.PipelineView;
 import com.dcp.pipeline.service.PipelineService;
 import com.dcp.pipeline.service.PipelineStore;
+import com.dcp.pipeline.sonar.SonarProbe;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -27,10 +28,17 @@ public class PipelineController {
 
     private final PipelineService pipelines;
     private final PipelineStore store;
+    private final SonarProbe sonar;
 
-    public PipelineController(PipelineService pipelines, PipelineStore store) {
+    public PipelineController(PipelineService pipelines, PipelineStore store, SonarProbe sonar) {
         this.pipelines = pipelines;
         this.store = store;
+        this.sonar = sonar;
+    }
+
+    @GetMapping("/quality")
+    public QualityView quality() {
+        return sonar.read();
     }
 
     @PostMapping

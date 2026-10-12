@@ -1,7 +1,10 @@
 FROM eclipse-temurin:21-jre-alpine
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl \
+    && addgroup -S dcp \
+    && adduser -S dcp -G dcp -h /home/dcp
 WORKDIR /app
-COPY backend/docker-service/target/service.jar /app/service.jar
+COPY --chown=dcp:dcp backend/docker-service/target/service.jar /app/service.jar
+USER dcp
 EXPOSE 8083
 HEALTHCHECK --interval=20s --timeout=3s --start-period=70s --retries=8 CMD curl -fsS http://localhost:8083/actuator/health/liveness || exit 1
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70.0", "-jar", "/app/service.jar"]

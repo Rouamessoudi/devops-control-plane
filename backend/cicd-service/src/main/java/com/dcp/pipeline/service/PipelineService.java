@@ -62,7 +62,7 @@ public class PipelineService {
             throw ApiException.badRequest("Unsupported pipeline mode");
         }
         PipelineView created = store.create(user.userId(), applicationId, repository, branch,
-                List.of(PipelineStore.PREPARE, PipelineStore.BUILD, PipelineStore.DEPLOY, PipelineStore.VERIFY));
+                List.of(PipelineStore.PREPARE, PipelineStore.SONAR, PipelineStore.GATE, PipelineStore.BUILD, PipelineStore.DEPLOY, PipelineStore.VERIFY));
         pipelineExecutor.execute(() -> runner.runLocal(created.id(), applicationId, user.userId()));
         return created;
     }

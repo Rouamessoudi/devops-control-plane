@@ -28,7 +28,11 @@ export class LogsPage {
   readonly error = signal('');
 
   load(): void {
-    this.api.monitorLogs(this.pod).subscribe({
+    if (!this.pod.trim()) {
+      this.error.set('Indiquez le nom du Pod.');
+      return;
+    }
+    this.api.monitorLogs(this.pod.trim()).subscribe({
       next: (text) => this.text.set(text),
       error: (err: unknown) => this.error.set(errorMessage(err))
     });

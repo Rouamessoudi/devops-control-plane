@@ -47,6 +47,12 @@ class ReleasePoliciesTest {
     }
 
     @Test
+    void routeHostIsBoundToTheReleaseName() {
+        assertEquals("demo-box.dcp.local", ReleasePolicies.routeHost("demo-box"));
+        assertThrows(ApiException.class, () -> ReleasePolicies.routeHost(" "));
+    }
+
+    @Test
     void canaryRouteUsesGatewayApiWeights() {
         HTTPRoute route = ReleaseManifests.canaryRoute("dcp", "demo", "dcp", "demo-stable", "demo-canary", 25);
         assertEquals("HTTPRoute", route.getKind());
@@ -56,6 +62,7 @@ class ReleasePoliciesTest {
         assertEquals("demo-stable", route.getSpec().getRules().get(0).getBackendRefs().get(0).getName());
         assertEquals(25, route.getSpec().getRules().get(0).getBackendRefs().get(1).getWeight());
         assertEquals("demo-canary", route.getSpec().getRules().get(0).getBackendRefs().get(1).getName());
+        assertEquals("demo.dcp.local", route.getSpec().getHostnames().get(0));
     }
 
     @Test
